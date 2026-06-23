@@ -1,0 +1,16 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Backup files (user data exports — never commit)
+chat-context-backup.json
+*.backup.json
+
+# Node (if you later add a dev server)
+node_modules/

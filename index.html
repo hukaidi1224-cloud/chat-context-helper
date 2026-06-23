@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>聊天语境助手</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card-bg: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text-muted: #8b949e;
+      --primary: #58a6ff;
+      --primary-hover: #79c0ff;
+      --green: #3fb950;
+      --red: #f85149;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container { max-width: 600px; margin: 0 auto; }
+    h1 { font-size: 1.5rem; margin-bottom: 20px; }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .form-group { margin-bottom: 12px; }
+    label { display: block; font-size: 0.875rem; color: var(--text-muted); margin-bottom: 4px; }
+    input, textarea, select {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 8px 12px;
+      font-size: 0.9rem;
+    }
+    textarea { min-height: 80px; resize: vertical; }
+    button {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 16px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover { background: var(--primary-hover); }
+    button.secondary { background: var(--border); }
+    button.danger { background: var(--red); }
+    .btn-row { display: flex; gap: 8px; margin-top: 12px; }
+    .context-list { margin-top: 20px; }
+    .context-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .context-item:last-child { border-bottom: none; }
+    .context-name { font-weight: 500; }
+    .context-tags { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; }
+    .hidden { display: none; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+    .tab {
+      padding: 8px 16px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .tab.active { background: var(--primary); border-color: var(--primary); }
+    .result { background: var(--bg); padding: 12px; border-radius: 6px; margin-top: 12px; white-space: pre-wrap; }
+    .tag { 
+      display: inline-block; background: var(--border); padding: 2px 8px; 
+      border-radius: 12px; font-size: 0.75rem; margin-right: 4px; 
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>💬 聊天语境助手</h1>
+    
+    <div class="tabs">
+      <div class="tab active" data-tab="ask">Ask</div>
+      <div class="tab" data-tab="contexts">语境库</div>
+      <div class="tab" data-tab="settings">设置</div>
+    </div>
+
+    <!-- Ask Tab -->
+    <div id="tab-ask" class="card">
+      <div class="form-group">
+        <label>选择聊天对象</label>
+        <select id="context-select">
+          <option value="">请先添加语境...</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>当前消息 / 想问的事情</label>
+        <textarea id="message-input" placeholder="对方刚才说了什么，或者你想发什么..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>你想要什么帮助？</label>
+        <select id="help-type">
+          <option value="reply">帮我生成回复</option>
+          <option value="tone">调整语气</option>
+          <option value="advice">给建议</option>
+          <option value="analyze">分析对方想法</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>聊天场景</label>
+        <select id="chat-scene">
+          <option value="dm">私信聊天（微信/QQ/短信）</option>
+          <option value="email">邮件沟通</option>
+        </select>
+      </div>
+      <button id="generate-btn">生成建议</button>
+      <div id="result" class="result hidden"></div>
+      <div class="btn-row">
+        <button id="copy-btn" class="secondary hidden">复制</button>
+        <button id="regen-btn" class="hidden">重新生成</button>
+      </div>
+    </div>
+
+    <!-- Contexts Tab -->
+    <div id="tab-contexts" class="card hidden">
+      <div class="form-group">
+        <label>聊天对象名称</label>
+        <input id="ctx-name" placeholder="如：crush、老板、客户">
+      </div>
+      <div class="form-group">
+        <label>关系</label>
+        <select id="ctx-relation">
+          <option value="crush">Crush/暗恋对象</option>
+          <option value="friend">朋友</option>
+          <option value="boss">老板/上级</option>
+          <option value="client">客户</option>
+          <option value="family">家人</option>
+          <option value="colleague">同事</option>
+          <option value="other">其他</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>对方的性格/特点</label>
+        <textarea id="ctx-personality" placeholder="如：比较内向、喜欢文艺、聊天时话不多"></textarea>
+      </div>
+      <div class="form-group">
+        <label>说话风格</label>
+        <select id="ctx-style">
+          <option value="casual">轻松随意</option>
+          <option value="formal">礼貌正式</option>
+          <option value="warm">温暖亲切</option>
+          <option value="humor">幽默风趣</option>
+          <option value="reserved">克制保守</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>重要纪念日/共同回忆</label>
+        <textarea id="ctx-memory" placeholder="如：上次一起去的咖啡馆、他的生日"></textarea>
+      </div>
+      <div class="form-group">
+        <label>注意事项</label>
+        <textarea id="ctx-note" placeholder="如：不要提分手的事、不要提太私人的话题"></textarea>
+      </div>
+      <div class="btn-row">
+        <button id="save-context-btn">保存语境</button>
+        <button id="clear-form-btn" class="secondary">清空</button>
+      </div>
+    </div>
+
+    <!-- Settings Tab -->
+    <div id="tab-settings" class="card hidden">
+      <div class="form-group">
+        <label>API Base URL（OpenAI 兼容协议）</label>
+        <input id="api-base" placeholder="https://api.deepseek.com/v1">
+        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+          <button class="tag preset-btn" data-url="https://api.deepseek.com/v1" data-model="deepseek-chat">DeepSeek</button>
+          <button class="tag preset-btn" data-url="https://api.openai.com/v1" data-model="gpt-4o-mini">OpenAI</button>
+          <button class="tag preset-btn" data-url="https://api.siliconflow.cn/v1" data-model="Qwen/Qwen2.5-7B-Instruct">硅基流动</button>
+          <button class="tag preset-btn" data-url="https://open.bigmodel.cn/api/paas/v4" data-model="glm-4-flash">智谱</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>API Key</label>
+        <input id="api-key" type="password" placeholder="sk-...">
+      </div>
+      <div class="form-group">
+        <label>模型名称</label>
+        <input id="model" placeholder="deepseek-chat / gpt-4o-mini / ...">
+      </div>
+      <button id="save-settings-btn">保存设置</button>
+      <div class="btn-row">
+        <button id="export-btn" class="secondary">导出数据</button>
+        <button id="import-btn" class="secondary">导入数据</button>
+        <input type="file" id="import-file" accept=".json" class="hidden">
+      </div>
+      <p style="margin-top:12px;font-size:0.75rem;color:var(--text-muted)">
+        支持 OpenAI 兼容协议的任意 API。数据仅保存在本地浏览器，不会上传。
+      </p>
+    </div>
+
+    <!-- Context List -->
+    <div id="context-list" class="card hidden"></div>
+  </div>
+
+  <script>
+    const DB_NAME = 'chat-context-helper';
+    const STORE_NAME = 'contexts';
+    const CONFIG_STORE = 'config';
+
+    // IndexedDB init
+    let db;
+    const initDB = () => new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, 1);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => { db = request.result; resolve(db); };
+      request.onupgradeneeded = (e) => {
+        const d = e.target.result;
+        if (!d.objectStoreNames.contains(STORE_NAME)) {
+          d.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+        }
+        if (!d.objectStoreNames.contains(CONFIG_STORE)) {
+          d.createObjectStore(CONFIG_STORE, { keyPath: 'key' });
+        }
+      };
+    });
+
+    // DB operations
+    const saveContext = (ctx) => new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const req = ctx.id ? store.put(ctx) : store.add(ctx);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+
+    const getContexts = () => new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+
+    const deleteContext = (id) => new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      store.delete(id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+
+    const saveConfig = (key, value) => new Promise((resolve, reject) => {
+      const tx = db.transaction(CONFIG_STORE, 'readwrite');
+      const store = tx.objectStore(CONFIG_STORE);
+      store.put({ key, value });
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+
+    const getConfig = (key) => new Promise((resolve, reject) => {
+      const tx = db.transaction(CONFIG_STORE, 'readonly');
+      const store = tx.objectStore(CONFIG_STORE);
+      const req = store.get(key);
+      req.onsuccess = () => resolve(req.result?.value);
+      req.onerror = () => reject(req.error);
+    });
+
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const tabId = tab.dataset.tab;
+        document.querySelectorAll('[id^="tab-"]').forEach(el => el.classList.add('hidden'));
+        document.getElementById('tab-' + tabId).classList.remove('hidden');
+        document.getElementById('context-list').classList.add('hidden');
+        if (tabId === 'contexts') {
+          loadContextList();
+          document.getElementById('context-list').classList.remove('hidden');
+        }
+        if (tabId === 'settings') loadSettings();
+      });
+    });
+
+    async function loadSettings() {
+      const baseUrl = await getConfig('apiBase') || 'https://api.deepseek.com/v1';
+      const model = await getConfig('model') || 'deepseek-chat';
+      const apiKey = await getConfig('apiKey') || '';
+      document.getElementById('api-base').value = baseUrl;
+      document.getElementById('model').value = model;
+      document.getElementById('api-key').value = apiKey;
+    }
+
+    // Load contexts to select
+    async function loadContextsToSelect() {
+      const contexts = await getContexts();
+      const select = document.getElementById('context-select');
+      select.innerHTML = contexts.length 
+        ? contexts.map(c => `<option value="${c.id}">${c.name}</option>`).join('')
+        : '<option value="">请先添加语境...</option>';
+    }
+
+    // Load context list
+    async function loadContextList() {
+      const contexts = await getContexts();
+      const list = document.getElementById('context-list');
+      if (!contexts.length) {
+        list.classList.remove('hidden');
+        list.innerHTML = '<p style="color:var(--text-muted)">暂无语境，去"语境库"添加吧</p>';
+        return;
+      }
+      list.classList.remove('hidden');
+      const relMap = {crush:'Crush',friend:'朋友',boss:'老板',client:'客户',family:'家人',colleague:'同事',other:'其他'};
+      const styleMap = {casual:'轻松',formal:'正式',warm:'温暖',humor:'幽默',reserved:'克制'};
+      list.innerHTML = contexts.map(c => `
+        <div class="context-item">
+          <div>
+            <div class="context-name">${c.name}</div>
+            <div class="context-tags">
+              <span class="tag">${relMap[c.relation]}</span>
+              <span class="tag">${styleMap[c.style]}</span>
+            </div>
+          </div>
+          <div class="btn-row">
+            <button class="secondary edit-btn" data-id="${c.id}">编辑</button>
+            <button class="danger delete-btn" data-id="${c.id}">删除</button>
+          </div>
+        </div>
+      `).join('');
+      
+      // Bind events
+      list.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (confirm('确定删除？')) {
+            await deleteContext(parseInt(btn.dataset.id));
+            loadContextList();
+            loadContextsToSelect();
+          }
+        });
+      });
+      list.querySelectorAll('.edit-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const contexts = await getContexts();
+          const ctx = contexts.find(c => c.id == btn.dataset.id);
+          if (ctx) {
+            document.getElementById('ctx-name').value = ctx.name;
+            document.getElementById('ctx-relation').value = ctx.relation;
+            document.getElementById('ctx-personality').value = ctx.personality || '';
+            document.getElementById('ctx-style').value = ctx.style;
+            document.getElementById('ctx-memory').value = ctx.memory || '';
+            document.getElementById('ctx-note').value = ctx.note || '';
+            // Store temp id for update
+            document.getElementById('save-context-btn').dataset.updateId = ctx.id;
+            document.querySelector('[data-tab="contexts"]').click();
+          }
+        });
+      });
+    }
+
+    // Save context
+    document.getElementById('save-context-btn').addEventListener('click', async () => {
+      const name = document.getElementById('ctx-name').value.trim();
+      if (!name) return alert('请输入名称');
+      
+      const ctx = {
+        name,
+        relation: document.getElementById('ctx-relation').value,
+        personality: document.getElementById('ctx-personality').value.trim(),
+        style: document.getElementById('ctx-style').value,
+        memory: document.getElementById('ctx-memory').value.trim(),
+        note: document.getElementById('ctx-note').value.trim()
+      };
+      
+      const updateId = document.getElementById('save-context-btn').dataset.updateId;
+      if (updateId) {
+        ctx.id = parseInt(updateId);
+        delete document.getElementById('save-context-btn').dataset.updateId;
+      }
+      
+      await saveContext(ctx);
+      alert('保存成功');
+      document.getElementById('clear-form-btn').click();
+      loadContextsToSelect();
+      loadContextList();
+    });
+
+    // Clear form
+    document.getElementById('clear-form-btn').addEventListener('click', () => {
+      document.querySelectorAll('#tab-contexts input, #tab-contexts textarea').forEach(el => el.value = '');
+      document.getElementById('ctx-relation').value = 'friend';
+      document.getElementById('ctx-style').value = 'casual';
+    });
+
+    // Generate reply
+    let lastContext = null;
+    document.getElementById('generate-btn').addEventListener('click', async () => {
+      const apiKey = await getConfig('apiKey');
+      if (!apiKey) return alert('请先在设置中填写 API Key');
+      
+      const ctxId = document.getElementById('context-select').value;
+      const message = document.getElementById('message-input').value.trim();
+      if (!ctxId || !message) return alert('请选择聊天对象并输入消息');
+      
+      const contexts = await getContexts();
+      const ctx = contexts.find(c => c.id == ctxId);
+      if (!ctx) return;
+      
+      const helpType = document.getElementById('help-type').value;
+      const chatScene = document.getElementById('chat-scene').value;
+      const helpPrompts = {
+        reply: '生成高情商回复',
+        tone: '调整回复的语气，使其更合适',
+        advice: '给出发消息的建议',
+        analyze: '分析对方这条消息可能的心理'
+      };
+      
+      const sceneRules = {
+        dm: '这是私信聊天（微信/QQ/短信），回复必须是纯文本，像真人发微信一样。',
+        email: '这是邮件沟通，回复需要包含邮件主题和正文，格式规范，可分段落。'
+      };
+      
+      const outputRules = {
+        dm: `严格要求：
+1. 直接输出回复内容，不要加任何前缀说明
+2. 禁止使用括号动作描写，如（微笑）、（微微颔首）等
+3. 禁止使用小说式描写、旁白、心理活动
+4. 语气要像真人发微信，口语化、简短自然
+5. 如果需要多个回复选项，用"---"分隔，每个选项都是可直接发送的纯文本`,
+        email: `严格要求：
+1. 输出格式：主题：xxx\n\n正文内容
+2. 正文可分段，语气正式但不僵硬
+3. 不要加任何前缀说明、括号动作描写`
+      };
+      
+      const systemPrompt = `你是一个聊天助手。用户正在和「${ctx.name}」（${ctx.relation}）聊天。
+对方信息：${ctx.personality || '未知'}
+说话风格：${ctx.style}
+重要回忆：${ctx.memory || '无'}
+注意事项：${ctx.note || '无'}
+
+${sceneRules[chatScene]}
+
+请${helpPrompts[helpType]}。回复要自然、符合对方的性格和你们的关系。
+
+${outputRules[chatScene]}`;
+      
+      const btn = document.getElementById('generate-btn');
+      const result = document.getElementById('result');
+      btn.disabled = true;
+      btn.textContent = '生成中...';
+      result.classList.add('hidden');
+      
+      try {
+        const model = await getConfig('model') || 'deepseek-chat';
+        const baseUrl = await getConfig('apiBase') || 'https://api.deepseek.com/v1';
+        const endpoint = baseUrl.replace(/\/+$/, '') + '/chat/completions';
+        
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: message }
+            ]
+          })
+        });
+        
+        const data = await res.json();
+        const reply = data.choices?.[0]?.message?.content || '生成失败: ' + (data.error?.message || '请检查API Key');
+        result.textContent = reply;
+        result.classList.remove('hidden');
+        document.getElementById('copy-btn').classList.remove('hidden');
+        document.getElementById('regen-btn').classList.remove('hidden');
+        lastContext = { ctx, message, helpType };
+      } catch (e) {
+        alert('请求失败: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '生成建议';
+      }
+    });
+
+    // Copy & Regen
+    document.getElementById('copy-btn').addEventListener('click', () => {
+      const text = document.getElementById('result').textContent;
+      navigator.clipboard.writeText(text).then(() => alert('已复制'));
+    });
+
+    document.getElementById('regen-btn').addEventListener('click', () => {
+      document.getElementById('generate-btn').click();
+    });
+
+    // Settings
+    document.getElementById('save-settings-btn').addEventListener('click', async () => {
+      const apiKey = document.getElementById('api-key').value.trim();
+      const apiBase = document.getElementById('api-base').value.trim();
+      if (!apiKey) return alert('请填写 API Key');
+      if (!apiBase) return alert('请填写 API Base URL');
+      await saveConfig('apiKey', apiKey);
+      await saveConfig('apiBase', apiBase);
+      await saveConfig('model', document.getElementById('model').value.trim() || 'deepseek-chat');
+      alert('已保存');
+    });
+
+    // Export/Import
+    document.getElementById('export-btn').addEventListener('click', async () => {
+      const contexts = await getContexts();
+      const includeKey = confirm('导出数据包含语境卡片和 API 设置。\n是否包含 API Key？（仅在你信任的目标设备上才选择"确定"）');
+      const data = {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        contexts,
+        config: {
+          apiBase: await getConfig('apiBase'),
+          model: await getConfig('model'),
+          ...(includeKey ? { apiKey: await getConfig('apiKey') } : {})
+        }
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'chat-context-backup.json';
+      a.click();
+    });
+
+    document.getElementById('import-btn').addEventListener('click', () => {
+      document.getElementById('import-file').click();
+    });
+
+    document.getElementById('import-file').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const data = JSON.parse(reader.result);
+          if (data.contexts) {
+            for (const ctx of data.contexts) {
+              await saveContext(ctx);
+            }
+          }
+          if (data.config?.apiKey) {
+            await saveConfig('apiKey', data.config.apiKey);
+          } else {
+            // 旧格式兼容：apiKey 可能在根 config 下
+          }
+          if (data.config?.apiBase) {
+            await saveConfig('apiBase', data.config.apiBase);
+          }
+          alert('导入成功');
+          loadContextsToSelect();
+          loadContextList();
+        } catch (err) {
+          alert('导入失败: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+    });
+
+    // Init
+    initDB().then(async () => {
+      loadContextsToSelect();
+      await loadSettings();
+    });
+
+    // Preset buttons
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.getElementById('api-base').value = btn.dataset.url;
+        document.getElementById('model').value = btn.dataset.model;
+      });
+    });
+  </script>
+</body>
+</html>
