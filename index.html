@@ -173,6 +173,10 @@
         <label>注意事项</label>
         <textarea id="ctx-note" placeholder="如：不要提分手的事、不要提太私人的话题"></textarea>
       </div>
+      <div class="form-group">
+        <label>自定义提示词微调 <span style="font-weight:400;color:var(--text-muted)">（可选，会追加到 AI prompt 末尾）</span></label>
+        <textarea id="ctx-custom-prompt" placeholder="如：回复要简短不超过30字、称呼他全名不要叫昵称、多用语气词..."></textarea>
+      </div>
       <div class="btn-row">
         <button id="save-context-btn">保存语境</button>
         <button id="clear-form-btn" class="secondary">清空</button>
@@ -361,8 +365,10 @@
             document.getElementById('ctx-style').value = ctx.style;
             document.getElementById('ctx-memory').value = ctx.memory || '';
             document.getElementById('ctx-note').value = ctx.note || '';
+            document.getElementById('ctx-custom-prompt').value = ctx.customPrompt || '';
             // Store temp id for update
             document.getElementById('save-context-btn').dataset.updateId = ctx.id;
+            document.getElementById('save-context-btn').textContent = '更新语境';
             document.querySelector('[data-tab="contexts"]').click();
           }
         });
@@ -380,7 +386,8 @@
         personality: document.getElementById('ctx-personality').value.trim(),
         style: document.getElementById('ctx-style').value,
         memory: document.getElementById('ctx-memory').value.trim(),
-        note: document.getElementById('ctx-note').value.trim()
+        note: document.getElementById('ctx-note').value.trim(),
+        customPrompt: document.getElementById('ctx-custom-prompt').value.trim()
       };
       
       const updateId = document.getElementById('save-context-btn').dataset.updateId;
@@ -391,6 +398,7 @@
       
       await saveContext(ctx);
       alert('保存成功');
+      document.getElementById('save-context-btn').textContent = '保存语境';
       document.getElementById('clear-form-btn').click();
       loadContextsToSelect();
       loadContextList();
@@ -401,6 +409,8 @@
       document.querySelectorAll('#tab-contexts input, #tab-contexts textarea').forEach(el => el.value = '');
       document.getElementById('ctx-relation').value = 'friend';
       document.getElementById('ctx-style').value = 'casual';
+      delete document.getElementById('save-context-btn').dataset.updateId;
+      document.getElementById('save-context-btn').textContent = '保存语境';
     });
 
     // Generate reply
@@ -449,6 +459,7 @@
 说话风格：${ctx.style}
 重要回忆：${ctx.memory || '无'}
 注意事项：${ctx.note || '无'}
+${ctx.customPrompt ? '额外要求：' + ctx.customPrompt : ''}
 
 ${sceneRules[chatScene]}
 
